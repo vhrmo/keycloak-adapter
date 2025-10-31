@@ -34,7 +34,7 @@ export class KeycloakAdapter {
       redirectUri: config.redirectUri || window.location.origin,
       postLogoutRedirectUri: config.postLogoutRedirectUri || window.location.origin,
       refreshInterval: config.refreshInterval ?? 60,
-      minValidity: config.minValidity ?? 70,
+      minValidity: config.minValidity ?? 30,
       enableSessionMonitoring: config.enableSessionMonitoring ?? true,
       sessionCheckInterval: config.sessionCheckInterval ?? 5,
       enableSingleSession: config.enableSingleSession ?? false,
@@ -107,12 +107,15 @@ export class KeycloakAdapter {
   async logout(): Promise<void> {
     this.stopTokenRefresh();
     this.stopSessionMonitoring();
+    
+    // Save idToken before clearing tokens
+    const idToken = this.tokens?.idToken || '';
     this.clearTokens();
 
     const logoutUrl = `${this.config.url}/realms/${this.config.realm}/protocol/openid-connect/logout`;
     const params = new URLSearchParams({
       post_logout_redirect_uri: this.config.postLogoutRedirectUri,
-      id_token_hint: this.tokens?.idToken || '',
+      id_token_hint: idToken,
     });
 
     window.location.href = `${logoutUrl}?${params.toString()}`;
@@ -321,7 +324,9 @@ export class KeycloakAdapter {
     }
 
     const payload = parts[1];
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    // Add proper padding for base64 decoding
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(decoded);
   }
 

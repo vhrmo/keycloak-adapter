@@ -33,7 +33,7 @@ export interface KeycloakAdapterConfig {
   refreshInterval?: number;
 
   /**
-   * Token minimum validity in seconds before refresh (default: 70)
+   * Token minimum validity in seconds before refresh (default: 30)
    */
   minValidity?: number;
 
