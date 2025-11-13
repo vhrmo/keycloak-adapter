@@ -254,63 +254,79 @@ await adapter.init();
 
 ## Advanced Usage
 
-### React Integration Example
+### Vue Integration Example
 
 ```typescript
-import { createContext, useContext, useEffect, useState } from 'react';
+import { ref, onMounted, onUnmounted, provide, inject, type InjectionKey } from 'vue';
 import { KeycloakAdapter } from '@vhrmo/keycloak-adapter';
 
-const KeycloakContext = createContext<KeycloakAdapter | null>(null);
+// Create injection key for type safety
+const KeycloakSymbol: InjectionKey<KeycloakAdapter> = Symbol('keycloak');
 
-export function KeycloakProvider({ children }: { children: React.ReactNode }) {
-  const [keycloak] = useState(() => new KeycloakAdapter({
+export function useKeycloakProvider() {
+  const keycloak = new KeycloakAdapter({
     url: import.meta.env.VITE_KEYCLOAK_URL,
     realm: import.meta.env.VITE_KEYCLOAK_REALM,
     clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
-  }));
-  const [initialized, setInitialized] = useState(false);
+  });
+  const initialized = ref(false);
 
-  useEffect(() => {
-    keycloak.init().then(setInitialized);
-    return () => keycloak.destroy();
-  }, []);
+  onMounted(async () => {
+    await keycloak.init();
+    initialized.value = true;
+  });
 
-  if (!initialized) {
-    return <div>Loading...</div>;
-  }
+  onUnmounted(() => {
+    keycloak.destroy();
+  });
 
-  return (
-    <KeycloakContext.Provider value={keycloak}>
-      {children}
-    </KeycloakContext.Provider>
-  );
+  provide(KeycloakSymbol, keycloak);
+
+  return { keycloak, initialized };
 }
 
 export function useKeycloak() {
-  const context = useContext(KeycloakContext);
-  if (!context) {
-    throw new Error('useKeycloak must be used within KeycloakProvider');
+  const keycloak = inject(KeycloakSymbol);
+  if (!keycloak) {
+    throw new Error('useKeycloak must be used within a component that calls useKeycloakProvider');
   }
-  return context;
+  return keycloak;
 }
+
+// Usage in App.vue
+// <script setup lang="ts">
+// import { useKeycloakProvider } from './composables/keycloak';
+// 
+// const { initialized } = useKeycloakProvider();
+// </script>
+// 
+// <template>
+//   <div v-if="!initialized">Loading...</div>
+//   <MyComponent v-else />
+// </template>
 
 // Usage in components
-function MyComponent() {
-  const keycloak = useKeycloak();
-
-  if (!keycloak.isAuthenticated()) {
-    return <button onClick={() => keycloak.login()}>Login</button>;
-  }
-
-  const profile = keycloak.getUserProfile();
-
-  return (
-    <div>
-      <p>Welcome, {profile?.username}!</p>
-      <button onClick={() => keycloak.logout()}>Logout</button>
-    </div>
-  );
-}
+// <script setup lang="ts">
+// import { computed } from 'vue';
+// import { useKeycloak } from './composables/keycloak';
+// 
+// const keycloak = useKeycloak();
+// const isAuthenticated = computed(() => keycloak.isAuthenticated());
+// const profile = computed(() => keycloak.getUserProfile());
+// 
+// const handleLogin = () => keycloak.login();
+// const handleLogout = () => keycloak.logout();
+// </script>
+// 
+// <template>
+//   <div v-if="!isAuthenticated">
+//     <button @click="handleLogin">Login</button>
+//   </div>
+//   <div v-else>
+//     <p>Welcome, {{ profile?.username }}!</p>
+//     <button @click="handleLogout">Logout</button>
+//   </div>
+// </template>
 ```
 
 ### Axios Interceptor Example
